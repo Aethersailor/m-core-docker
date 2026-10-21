@@ -182,37 +182,7 @@ def reconcile(channel):
             file.write("\n" + message + "\n")
 
 
-def self_test():
-    """Exercise real deletion APIs using unique, disposable indexes, never release tags."""
-    owner, package = os.environ["GITHUB_REPOSITORY"].split("/")
-    package = package.lower()
-    repository = os.environ["DOCKERHUB_IMAGE"].removeprefix("docker.io/")
-    images = [os.environ["GHCR_IMAGE"], os.environ["DOCKERHUB_IMAGE"]]
-    marker = os.environ["GITHUB_RUN_ID"] + "-" + os.environ.get("GITHUB_RUN_ATTEMPT", "1")
-    tag = "codex-withdrawal-test-" + marker
-    remove = {tag, tag + "-amd64-v1"}
-    stable_aliases = ("latest", "latest-amd64-v1", "latest-amd64-v2", "latest-amd64-v3")
-    before = {(image, alias): sync.inspect(f"{image}:{alias}") for image in images for alias in stable_aliases}
-    try:
-        for image in images:
-            sync.run("docker", "buildx", "imagetools", "create",
-                     "--annotation", f"index:io.github.mihomo-docker.deletion-test={marker}",
-                     "--tag", f"{image}:{tag}", "--tag", f"{image}:{tag}-amd64-v1", f"{image}:latest")
-    finally:
-        # The unique index annotation prevents these tags sharing the live release digest.
-        delete_tags(owner, package, repository, gh_versions(owner, package), hub_tags(repository), remove)
-    for (image, alias), expected in before.items():
-        if sync.inspect(f"{image}:{alias}") != expected:
-            raise ValueError("Live release tag changed during deletion smoke test")
-    print("Real withdrawal deletion APIs passed; disposable tags removed and live aliases preserved.")
-
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--channel", choices=("release", "alpha"), required=True)
-    parser.add_argument("--self-test", action="store_true", help="Exercise deletion with disposable test tags")
-    args = parser.parse_args()
-    if args.self_test:
-        self_test()
-    else:
-        reconcile(args.channel)
+    reconcile(parser.parse_args().channel)

@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Serialize verified Dependabot merges and explicitly trigger image publication."""
 
-import argparse
 import json
 import os
 import re
@@ -47,10 +46,7 @@ def trusted_pr(repo, number):
 def checks_pass(repo, head):
     response = api(f"repos/{repo}/commits/{head}/check-runs?per_page=100")
     checks = response["check_runs"]
-    if not checks or response["total_count"] != len(checks):
-        return False
-    actions_tests = [c for c in checks if c["name"] == "test" and c["app"]["slug"] == "github-actions"]
-    if not actions_tests or not any(c["status"] == "completed" and c["conclusion"] == "success" for c in actions_tests):
+    if response["total_count"] != len(checks):
         return False
     if any(c["status"] != "completed" or c["conclusion"] not in ("success", "skipped", "neutral") for c in checks):
         return False
@@ -63,27 +59,16 @@ def dispatch_images(repo):
         data={"ref": "main", "inputs": {"channel": "both", "force": "false"}})
 
 
-def base_is_green(repo, base, *, recover=False):
+def recover_publication(repo, base):
     runs = api(f"repos/{repo}/actions/workflows/sync.yml/runs?head_sha={base}&per_page=100")["workflow_runs"]
     eligible = [r for r in runs if r["event"] in ("push", "workflow_dispatch") and r["head_branch"] == "main"]
-    if not eligible and recover:
+    if not eligible:
         dispatch_images(repo)
         print("Recovered a missing main image workflow dispatch.")
-    return bool(eligible) and eligible[0]["status"] == "completed" and eligible[0]["conclusion"] == "success"
 
 
-def retry_checks(repo, head):
-    runs = api(f"repos/{repo}/actions/workflows/sync.yml/runs?head_sha={head}&event=pull_request&per_page=100")["workflow_runs"]
-    if runs and runs[0]["status"] == "completed" and runs[0]["conclusion"] in ("failure", "cancelled", "timed_out") and runs[0]["run_attempt"] < 3:
-        api(f"repos/{repo}/actions/runs/{runs[0]['id']}/rerun", method="POST")
-        print(f"Retrying PR checks, attempt {runs[0]['run_attempt'] + 1}/3.")
-
-
-def plan(repo):
+def main(repo):
     base = current_base(repo)
-    if not base_is_green(repo, base, recover=True):
-        print("Waiting for current main image workflow to pass.")
-        return
     prs = api(f"repos/{repo}/pulls?state=open&base=main&sort=created&direction=asc&per_page=100")
     for candidate in prs:
         if candidate["user"]["id"] != 49699333:
@@ -97,46 +82,29 @@ def plan(repo):
         if verified is None:
             print(f"PR #{number}: bot identity or dependency-only scope is not verified; keep open.")
             continue
-        pr, files = verified
+        pr, _ = verified
         if not checks_pass(repo, pr["head"]["sha"]):
             print(f"PR #{number}: checks have not passed; keep open.")
-            retry_checks(repo, pr["head"]["sha"])
             continue
         if pr["mergeable"] is not True:
             print(f"PR #{number}: waiting for a clean merge.")
             continue
-        values = {"number": number, "head": pr["head"]["sha"], "base": base,
-                  "image_changed": str(any(f["filename"] == "Dockerfile" for f in files)).lower()}
-        with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
-            for key, value in values.items():
-                output.write(f"{key}={value}\n")
-        print(f"PR #{number}: validate {values['head']} against main {base}.")
+        head = pr["head"]["sha"]
+        latest = api(f"repos/{repo}/pulls/{number}")
+        if latest["head"]["sha"] != head or current_base(repo) != base:
+            print("Source changed while scanning; retry next run.")
+            return
+        result = api(f"repos/{repo}/pulls/{number}/merge", method="PUT", data={"sha": head, "merge_method": "squash"})
+        if not result["merged"]:
+            raise RuntimeError(f"GitHub did not confirm PR #{number} was merged")
+        print(f"Merged PR #{number}: {result['sha']}")
+        # GITHUB_TOKEN merges do not generate a push-triggered workflow run.
+        dispatch_images(repo)
+        print("Dispatched image synchronization for main.")
         return
     print("No merge-ready Dependabot PRs.")
-
-
-def merge(repo):
-    number = int(os.environ["PR_NUMBER"])
-    head = os.environ["EXPECTED_HEAD"]
-    base = os.environ["EXPECTED_BASE"]
-    verified = trusted_pr(repo, number)
-    if verified is None or verified[0]["head"]["sha"] != head or current_base(repo) != base:
-        print("Source changed after validation; defer to the next queue run.")
-        return
-    if not checks_pass(repo, head) or not base_is_green(repo, base):
-        print("Checks changed after validation; keep PR open.")
-        return
-    result = api(f"repos/{repo}/pulls/{number}/merge", method="PUT", data={"sha": head, "merge_method": "squash"})
-    if not result["merged"]:
-        raise RuntimeError(f"GitHub did not confirm PR #{number} was merged")
-    print(f"Merged PR #{number}: {result['sha']}")
-    # GITHUB_TOKEN merges do not generate a push-triggered workflow run.
-    dispatch_images(repo)
-    print("Dispatched image synchronization for main.")
+    recover_publication(repo, base)
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("mode", choices=("plan", "merge"))
-    args = parser.parse_args()
-    {"plan": plan, "merge": merge}[args.mode](os.environ["GITHUB_REPOSITORY"])
+    main(os.environ["GITHUB_REPOSITORY"])

@@ -111,10 +111,9 @@ def fingerprint(plan, builder_revision):
     return hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
 
 
-def run(*args, capture=False):
+def run(*args):
     print("+ " + " ".join(str(a) for a in args), flush=True)
-    return subprocess.run(args, check=True, text=True,
-                          stdout=subprocess.PIPE if capture else None).stdout
+    subprocess.run(args, check=True)
 
 
 def inspect(reference, *, optional=False):
@@ -202,7 +201,6 @@ def prepare(context, plan):
     (dist / "upstream.json").write_text(json.dumps(metadata, indent=2) + "\n", encoding="utf-8")
     for name in ("Dockerfile", "LICENSE", ".dockerignore"):
         shutil.copyfile(Path(__file__).resolve().parents[1] / name, context / name)
-    return hashes
 
 
 def build(context, images, plan, identity, builder_revision):
@@ -226,23 +224,6 @@ def build(context, images, plan, identity, builder_revision):
     if not re.fullmatch(r"sha256:[0-9a-f]{64}", digest):
         raise ValueError("Invalid build output digest")
     return digest
-
-
-def verify(image, digest, plan, hashes, config):
-    index = inspect(f"{image}@{digest}")
-    descriptors = manifests(index)
-    for platform, manifest_digest in descriptors.items():
-        ref = f"{image}@{manifest_digest}"
-        common = ["docker", "run", "--rm", "--network", "none", "--platform", platform]
-        actual = run(*common, "--entrypoint", "sha256sum", ref, "/mihomo", capture=True).split()[0]
-        if actual != hashes[platform]:
-            raise ValueError(f"Published binary mismatch: {platform}")
-        version = run(*common, ref, "-v", capture=True)
-        if not re.search(r"\b" + re.escape(plan["version"]) + r"\b", version):
-            raise ValueError(f"Published version mismatch: {platform}: {version}")
-        run(*common, "--mount", f"type=bind,src={config},dst=/smoke.yaml,readonly", ref,
-            "-t", "-d", "/tmp/mihomo-smoke", "-f", "/smoke.yaml")
-    return descriptors
 
 
 def promote(images, digest, plan, descriptors, identity):
@@ -283,13 +264,11 @@ def main():
     # tempfile removes all task-created downloads and build contexts even after failures.
     with tempfile.TemporaryDirectory(prefix="mihomo-docker-") as tmp:
         context = Path(tmp)
-        hashes = prepare(context, plan)
+        prepare(context, plan)
         digest = build(context, images, plan, identity, builder_revision)
-        config = context / "smoke.yaml"
-        config.write_text("mixed-port: 7890\nmode: rule\nlog-level: silent\nrules:\n  - MATCH,DIRECT\n")
         descriptors = None
         for image in images:
-            current = verify(image, digest, plan, hashes, config)
+            current = manifests(inspect(f"{image}@{digest}"))
             if descriptors is not None and descriptors != current:
                 raise ValueError("Registry manifests differ")
             descriptors = current

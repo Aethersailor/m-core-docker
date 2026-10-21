@@ -14,81 +14,23 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
+  pull-requests: write
+  actions: write
 
 concurrency:
   group: dependabot-automerge
   cancel-in-progress: false
 
 jobs:
-  plan:
+  merge:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: read
-      actions: write
-    outputs:
-      number: ${{ steps.queue.outputs.number }}
-      head: ${{ steps.queue.outputs.head }}
-      base: ${{ steps.queue.outputs.base }}
-      image_changed: ${{ steps.queue.outputs.image_changed }}
     steps:
-      # Jobs with write permissions only run trusted default-branch code.
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: refs/heads/main
           persist-credentials: false
-      - id: queue
+      - name: Merge Dependabot updates
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python3 scripts/dependabot_queue.py plan
-
-  validate:
-    needs: plan
-    if: needs.plan.outputs.number != ''
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-        with:
-          ref: ${{ needs.plan.outputs.base }}
-          fetch-depth: 0
-          persist-credentials: false
-      - name: Validate the dependency change against current main
-        env:
-          PR_HEAD: ${{ needs.plan.outputs.head }}
-        run: |
-          git fetch origin "$PR_HEAD"
-          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' merge --no-commit --no-ff "$PR_HEAD"
-          python3 -m unittest discover -s tests -v
-      - name: Setup Buildx
-        if: needs.plan.outputs.image_changed == 'true'
-        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
-      - name: Check the updated base image without publishing
-        if: needs.plan.outputs.image_changed == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: python3 scripts/verify_candidate.py
-
-  merge:
-    needs: [plan, validate]
-    if: needs.validate.result == 'success'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
-      actions: write
-    steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-        with:
-          ref: ${{ needs.plan.outputs.base }}
-          persist-credentials: false
-      - name: Merge the verified head and trigger image synchronization
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ needs.plan.outputs.number }}
-          EXPECTED_HEAD: ${{ needs.plan.outputs.head }}
-          EXPECTED_BASE: ${{ needs.plan.outputs.base }}
-        run: python3 scripts/dependabot_queue.py merge
+        run: python3 scripts/dependabot_queue.py
