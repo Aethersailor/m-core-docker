@@ -1,3 +1,5 @@
+> 本工程已迁移至 [Container Forge 的 mihomo 工程](https://github.com/Aethersailor/container-forge/tree/main/mihomo)。后续更新在新仓库维护，镜像地址和标签保持不变。本仓库保留历史记录。
+
 # m-core-docker
 
 自动同步 [mihomo 官方](https://github.com/MetaCubeX/mihomo)的正式版和 Alpha 并打包官方二进制为 Docker 镜像，为 Docker 补齐 amd64 v1、v2、v3。不修改核心代码。
