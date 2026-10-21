@@ -96,3 +96,18 @@ jobs:
           FORCE_SYNC: ${{ inputs.force || 'false' }}
           CHANNEL: ${{ matrix.channel }}
         run: python3 scripts/sync.py --channel "$CHANNEL"
+      - name: Reconcile withdrawn upstream releases
+        if: steps.config.outputs.enabled == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          CHANNEL: ${{ matrix.channel }}
+        run: python3 scripts/reconcile.py --channel "$CHANNEL"
+      - name: Verify deletion APIs with disposable tags
+        if: steps.config.outputs.enabled == 'true' && matrix.channel == 'release' && github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: python3 scripts/reconcile.py --channel release --self-test

@@ -215,7 +215,8 @@ def build(context, images, plan, identity, builder_revision):
               "io.github.mihomo-docker.upstream-revision": plan["revision"]}
     command = ["docker", "buildx", "build", "--platform", ",".join(PLATFORMS),
                "--provenance=false", "--metadata-file", str(context / "build.json"),
-               "--annotation", f"index:{FINGERPRINT}={identity}"]
+               "--annotation", f"index:{FINGERPRINT}={identity}",
+               "--annotation", f"index:org.opencontainers.image.version={plan['version']}"]
     for name, value in labels.items():
         command += ["--label", f"{name}={value}"]
     # Both registries receive the same content-addressed index before any public alias changes.
@@ -262,7 +263,14 @@ def main():
     parser.add_argument("--channel", choices=("release", "alpha"), required=True)
     parser.add_argument("--plan", action="store_true", help="Read upstream metadata without building or publishing")
     args = parser.parse_args()
-    plan = resolve(args.channel)
+    try:
+        plan = resolve(args.channel)
+    except urllib.error.HTTPError as exc:
+        endpoint = "latest" if args.channel == "release" else "tags/Prerelease-Alpha"
+        if exc.code != 404 or exc.url != f"https://api.github.com/repos/{UPSTREAM}/releases/{endpoint}":
+            raise
+        print("No upstream release is published for this channel; withdrawal reconciliation will check existing tags.")
+        return
     print(json.dumps({k: v for k, v in plan.items() if k != "assets"}, indent=2), flush=True)
     if args.plan:
         return
