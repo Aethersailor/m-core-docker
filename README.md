@@ -1,6 +1,6 @@
 # m-core-docker
 
-自动同步 [mihomo 官方](https://github.com/MetaCubeX/mihomo)的正式版和 Alpha，直接打包官方二进制，为 Docker 补齐 amd64 v1、v2、v3。社区维护项目，不修改核心代码。
+自动同步 [mihomo 官方](https://github.com/MetaCubeX/mihomo)的正式版和 Alpha 并打包官方二进制为 Docker 镜像，为 Docker 补齐 amd64 v1、v2、v3。不修改核心代码。
 
 ## 镜像地址
 
@@ -53,6 +53,4 @@ docker compose pull
 docker compose up -d
 ```
 
-每 30 分钟检查一次官方更新，实际同步时间可能延迟。官方撤回版本后，会移除对应标签，并让 `latest` 回退至官方当前正式版；已拉取到本地的镜像不受影响。首次同步从当前版本开始，不回填全部历史版本。
-
-许可证：[GPL-3.0](LICENSE)。
+每 30 分钟检查一次官方更新，实际同步时间可能延迟。
