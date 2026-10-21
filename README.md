@@ -1,14 +1,14 @@
-# mihomo-docker
+# m-core-docker
 
 自动同步 [mihomo 官方](https://github.com/MetaCubeX/mihomo)的正式版和 Alpha，直接打包官方二进制，为 Docker 补齐 amd64 v1、v2、v3。社区维护项目，不修改核心代码。
 
 ## 镜像地址
 
-[Docker Hub](https://hub.docker.com/r/aethersailor/mihomo-docker) 和 [GHCR](https://github.com/Aethersailor/mihomo-docker/pkgs/container/mihomo-docker) 的镜像内容相同，可任选其一：
+[Docker Hub](https://hub.docker.com/r/aethersailor/mihomo) 和 [GHCR](https://github.com/Aethersailor/m-core-docker/pkgs/container/mihomo) 的镜像内容相同，可任选其一：
 
 ```text
-aethersailor/mihomo-docker
-ghcr.io/aethersailor/mihomo-docker
+aethersailor/mihomo
+ghcr.io/aethersailor/mihomo
 ```
 
 ## 选择标签
@@ -30,7 +30,7 @@ ghcr.io/aethersailor/mihomo-docker
 ```yaml
 services:
   mihomo:
-    image: aethersailor/mihomo-docker:latest
+    image: aethersailor/mihomo:latest
     restart: unless-stopped
     ports:
       - "127.0.0.1:7890:7890"
@@ -44,7 +44,7 @@ services:
 docker compose up -d
 ```
 
-使用 Alpha 时，将标签改为 `Alpha`。使用 GHCR 时，将镜像名改为 `ghcr.io/aethersailor/mihomo-docker`。TUN、透明代理等用法参见 [mihomo 文档](https://wiki.metacubex.one/)。配置目录和启动参数与官方镜像一致。
+使用 Alpha 时，将标签改为 `Alpha`。使用 GHCR 时，将镜像名改为 `ghcr.io/aethersailor/mihomo`。TUN、透明代理等用法参见 [mihomo 文档](https://wiki.metacubex.one/)。配置目录和启动参数与官方镜像一致。
 
 更新镜像：
 

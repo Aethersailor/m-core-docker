@@ -22,8 +22,8 @@ permissions:
 
 # Image addresses are stable even when the GitHub repository is renamed.
 env:
-  GHCR_IMAGE: ghcr.io/aethersailor/mihomo-docker
-  DOCKERHUB_IMAGE: docker.io/aethersailor/mihomo-docker
+  GHCR_IMAGE: ghcr.io/aethersailor/mihomo
+  DOCKERHUB_IMAGE: docker.io/aethersailor/mihomo
 
 jobs:
   publish:
