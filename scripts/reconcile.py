@@ -145,12 +145,11 @@ def delete_tags(owner, package, repository, versions, published_hub, remove):
 
 
 def reconcile(channel):
-    owner, package = os.environ["GITHUB_REPOSITORY"].split("/")
-    package = package.lower()
+    owner, package = "aethersailor", "mihomo-docker"
     repository = os.environ["DOCKERHUB_IMAGE"].removeprefix("docker.io/")
     images = [os.environ["GHCR_IMAGE"], os.environ["DOCKERHUB_IMAGE"]]
-    if images[0] != f"ghcr.io/{owner.lower()}/{package}" or repository != f"{os.environ['DOCKERHUB_USERNAME'].lower()}/{package}":
-        raise ValueError("Cleanup must stay within this repository's two image packages")
+    if images != [f"ghcr.io/{owner}/{package}", f"docker.io/{owner}/{package}"]:
+        raise ValueError("Cleanup must stay within the original mihomo-docker image packages")
     upstream = sync.api(f"repos/{sync.UPSTREAM}")
     if upstream["private"]:
         raise ValueError("Cannot verify public upstream availability")

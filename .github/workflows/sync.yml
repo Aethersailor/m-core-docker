@@ -20,6 +20,11 @@ on:
 permissions:
   contents: read
 
+# Image addresses are stable even when the GitHub repository is renamed.
+env:
+  GHCR_IMAGE: ghcr.io/aethersailor/mihomo-docker
+  DOCKERHUB_IMAGE: docker.io/aethersailor/mihomo-docker
+
 jobs:
   publish:
     runs-on: ubuntu-latest
@@ -55,8 +60,6 @@ jobs:
             exit 1
           }
           echo 'enabled=true' >> "$GITHUB_OUTPUT"
-          echo "GHCR_IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
-          echo "DOCKERHUB_IMAGE=docker.io/${DOCKERHUB_USERNAME,,}/mihomo-docker" >> "$GITHUB_ENV"
       - name: Login to GHCR
         if: steps.config.outputs.enabled == 'true'
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
